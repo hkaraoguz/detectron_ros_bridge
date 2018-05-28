@@ -9,6 +9,9 @@ import json
 import base64
 from detectron_ros_bridge.srv import *
 import numpy as np
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+import cv2
 
 class DetectronClient():
 
@@ -18,6 +21,7 @@ class DetectronClient():
         self.host = host #"192.168.1.118" # needs to be in quote
         self.port = port
         self.s_client = rospy.Service('detectron', Detectron, self.handle_detectron_request)
+        self.bridge = CvBridge()
 
     def connect(self):
         try:
@@ -49,7 +53,7 @@ class DetectronClient():
 
     def send_data(self, data):
         try:
-            self.socket.send(data)
+            self.socket.sendall(data)
             time.sleep(1)
             return True
         except Exception as ex:
@@ -61,13 +65,21 @@ class DetectronClient():
     def handle_detectron_request(self,req):
 
         data = dict()
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(req.image, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+            return
 
-        img = base64.b64encode(req.image.data)
+        ret, buffer_img = cv2.imencode('.jpg', cv_image)
 
-        data["img"] = img
+
+        #img = base64.b64encode(req.image.data)
+
+        data['img'] = base64.b64encode(buffer_img)
         data['bb_threshold'] = req.conf_threshold
         data['det_threshold'] = req.conf_threshold
-        data["name"] = "rocco"
+        data['name'] = "rocco"
 
         if not self.send_data(json.dumps(data)):
             return DetectronResponse("{}")
@@ -100,6 +112,39 @@ class DetectronClient():
 
         self.pub.publish(command)
 
+    def image_callback(self,msg):
+
+        data = dict()
+
+
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+        except CvBridgeError as e:
+            print(e)
+            return
+
+        ret, buffer_img = cv2.imencode('.jpg', cv_image)
+
+        #encoded = #base64.encodestring(b'data to be encoded')
+        #data['bytes'] = encoded.decode('ascii')
+        #img =  str(msg.data).encode("base64") #base64.b64encode(data)
+
+        data["img"] = base64.b64encode(buffer_img)#img.encode('ascii')
+        data['bb_threshold'] = 0.5
+        data['det_threshold'] = 0.5
+        data["name"] = "rocco"
+
+        jsondata = json.dumps(data)
+
+        #enc = jsondata.encode()  # utf-8 by default
+        #print base64.encodestring(enc)
+
+        if not self.send_data(jsondata):
+            return DetectronResponse("{}")
+
+        
+
+
 
 
 
@@ -109,14 +154,19 @@ if __name__ == '__main__':
     rospy.init_node('detectron_ros_bridge')
 
     argparse = argparse.ArgumentParser(prog='main.py');
-    argparse.add_argument("--host", type=str, help='Host address')
+    argparse.add_argument("--host", type=str, help='Host address',default="localhost")
     argparse.add_argument("--port", type=int, help='Host port', default=5000)
 
 
     args = argparse.parse_args(rospy.myargv(argv=sys.argv)[1:])
 
 
+    print args.host
+    print args.port
     detectronclient = DetectronClient(host=args.host, port=args.port)
+
+    rospy.Subscriber("camera1_image", Image, detectronclient.image_callback)
+
 
     if(not detectronclient.connect()):
         rospy.signal_shutdown("Communication Error with the Server")
