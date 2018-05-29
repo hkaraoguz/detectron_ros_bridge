@@ -78,7 +78,7 @@ class DetectronClient():
 
         data['img'] = base64.b64encode(buffer_img)
         data['bb_threshold'] = req.conf_threshold
-        data['det_threshold'] = req.conf_threshold
+        data['novelty_threshold'] = 0.3#req.conf_threshold
         data['name'] = "rocco"
 
         if not self.send_data(json.dumps(data)):
@@ -131,7 +131,7 @@ class DetectronClient():
 
         data["img"] = base64.b64encode(buffer_img)#img.encode('ascii')
         data['bb_threshold'] = 0.5
-        data['det_threshold'] = 0.5
+        data['novelty_threshold'] = 0.3
         data["name"] = "rocco"
 
         jsondata = json.dumps(data)
@@ -142,7 +142,7 @@ class DetectronClient():
         if not self.send_data(jsondata):
             return DetectronResponse("{}")
 
-        
+        #self.rec
 
 
 
