@@ -13,15 +13,17 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 
+
 class DetectronClient():
 
     def __init__(self,host='192.168.1.118',port=5000):
         self.socket= socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.settimeout(10.0)
+        self.socket.settimeout(30.0)
         self.host = host #"192.168.1.118" # needs to be in quote
         self.port = port
         self.s_client = rospy.Service('detectron', Detectron, self.handle_detectron_request)
         self.bridge = CvBridge()
+        self.ji = 0
 
     def connect(self):
         try:
@@ -81,8 +83,9 @@ class DetectronClient():
         data['novelty_threshold'] = 0.3#req.conf_threshold
         data['name'] = "rocco"
 
-        if not self.send_data(json.dumps(data)):
-            return DetectronResponse("{}")
+        if ji == 0:
+            if not self.send_data(json.dumps(data)):
+                return DetectronResponse("{}")
 
 
     def parsedata(self,data):
@@ -138,9 +141,13 @@ class DetectronClient():
 
         #enc = jsondata.encode()  # utf-8 by default
         #print base64.encodestring(enc)
+        if self.ji == 0:
+            if not self.send_data(jsondata):
+                print "Socket error while sending data"
+                rospy.signal_shutdown("Socket Error")
+            self.ji += 1
 
-        if not self.send_data(jsondata):
-            return DetectronResponse("{}")
+        #time.sleep(2)
 
         #self.rec
 
@@ -173,7 +180,11 @@ if __name__ == '__main__':
 
     rospy.loginfo("Detectron ROS bridge started...");
 
-    rospy.spin()
+    while not rospy.is_shutdown():
+        data = detectronclient.listen()
+        if len(data) > 0 :
+            print data
+            #enerothclient.parsedata(data)
 
     #while not rospy.is_shutdown():
         #data = detectronclient.listen()
