@@ -12,7 +12,8 @@ import numpy as np
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
-
+from PIL import Image as Im
+import io
 
 class DetectronClient():
 
@@ -38,7 +39,7 @@ class DetectronClient():
         return True
 
     def listen(self):
-        buf = []
+        buf = b''
         try:
             buf = self.socket.recv(4096)
             #buf += s.recv(1)
@@ -49,8 +50,8 @@ class DetectronClient():
             return buf
 
     def close(self):
-        self.send_data("close me".encode("utf-8"))
-        time.sleep(1)
+        #self.send_data("close me".encode("utf-8"))
+        #time.sleep(1)
         self.socket.close()
 
     def send_data(self, data):
@@ -152,6 +153,23 @@ class DetectronClient():
         #self.rec
 
 
+# Take in base64 string and return cv image
+def stringToRGB(base64_string):
+    dataArray = np.frombuffer(base64.decodestring(base64_string), np.float32)
+    print dataArray.shape
+    #imgdata = base64.b64decode(str(base64_string))
+    #im = np.fromstring(base64_string)#.astype(np.float16)
+    im = dataArray.reshape(544,960)
+    print im.shape
+    print np.where(im > 0.5)
+    image = Im.fromarray(im)
+    filename = "deneme"
+    filename +=".tiff"
+    print(filename)
+        
+    image.save(filename)
+    #image =Im.open(io.BytesIO(imgdata))
+    return image#cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
 
 
 
@@ -163,6 +181,7 @@ if __name__ == '__main__':
     argparse = argparse.ArgumentParser(prog='main.py');
     argparse.add_argument("--host", type=str, help='Host address',default="localhost")
     argparse.add_argument("--port", type=int, help='Host port', default=5000)
+    argparse.add_argument("--camera_topic", type=str, help='camera topic to listen', default="kinect2/qhd/image_color")
 
 
     args = argparse.parse_args(rospy.myargv(argv=sys.argv)[1:])
@@ -172,18 +191,33 @@ if __name__ == '__main__':
     print args.port
     detectronclient = DetectronClient(host=args.host, port=args.port)
 
-    rospy.Subscriber("camera1_image", Image, detectronclient.image_callback)
+    rospy.Subscriber(args.camera_topic, Image, detectronclient.image_callback)
 
 
     if(not detectronclient.connect()):
         rospy.signal_shutdown("Communication Error with the Server")
 
     rospy.loginfo("Detectron ROS bridge started...");
-
+    data = b''
     while not rospy.is_shutdown():
-        data = detectronclient.listen()
+        
+        data += detectronclient.listen()
+        
         if len(data) > 0 :
-            print data
+            #print type(data)
+            #print data.split()
+            try:
+                jsonresp = json.loads(data)
+                data = b''
+                print jsonresp[0]
+                img = stringToRGB(jsonresp[1])
+                print img
+            except Exception as ex:
+                print ex
+                print "keep trying"
+                
+            #print len(data.split(","))
+            
             #enerothclient.parsedata(data)
 
     #while not rospy.is_shutdown():

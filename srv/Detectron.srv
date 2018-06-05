@@ -1,4 +1,4 @@
 sensor_msgs/Image image
-float32 confidence_threshold
 ---
 string result
+float32[][] probability_map
